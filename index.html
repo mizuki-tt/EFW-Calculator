@@ -15,41 +15,134 @@ button{width:100%;font-size:20px;font-weight:bold;padding:14px;margin-top:18px;b
 .result{margin-top:20px;padding:16px;border-radius:10px;background:#eee;text-align:center}
 .efw{font-size:32px;font-weight:bold;margin:8px 0}.line{font-size:18px;margin:8px 0}
 .note{font-size:13px;line-height:1.5;color:#555;margin-top:18px}.error{font-size:15px;margin-top:10px}
+.ok{font-weight:bold}.warn{font-weight:bold}
 </style>
 </head>
 <body>
 <div class="card">
 <h1>Fetal Weight Calculator</h1>
-<div>Enter measurements in <b>mm</b>.</div>
-<label>Gestational age (weeks)</label><input id="ga" type="number" step="0.1" inputmode="decimal">
-<label>HC (mm)</label><input id="hc" type="number" step="0.1" inputmode="decimal">
-<label>AC (mm)</label><input id="ac" type="number" step="0.1" inputmode="decimal">
-<label>FL (mm)</label><input id="fl" type="number" step="0.1" inputmode="decimal">
+<div>INTERGROWTH-21st EFW standard</div>
+<div>Enter HC, AC and FL in <b>mm</b>.</div>
+
+<label>Gestational age (weeks)</label>
+<input id="ga" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 30">
+
+<label>HC (mm)</label>
+<input id="hc" type="number" step="0.1" inputmode="decimal">
+
+<label>AC (mm)</label>
+<input id="ac" type="number" step="0.1" inputmode="decimal">
+
+<label>FL (mm)</label>
+<input id="fl" type="number" step="0.1" inputmode="decimal">
+
 <button id="calc" type="button">CALCULATE</button>
 <button id="clear" type="button">CLEAR</button>
+
 <div class="result">
-<div>Estimated Fetal Weight</div><div class="efw" id="efw">— g</div>
-<div class="line">Percentile: <b id="pct">—</b></div>
-<div class="line" id="assessment">—</div><div class="error" id="error"></div>
+<div>Estimated Fetal Weight</div>
+<div class="efw" id="efw">— g</div>
+<div class="line">INTERGROWTH-21st percentile: <b id="pct">—</b></div>
+<div class="line" id="assessment">—</div>
+<div class="error" id="error"></div>
 </div>
-<div class="note">For trained users. EFW is an estimate and should be interpreted with an appropriate gestational-age reference chart. This tool supports clinical assessment and is not intended for definitive diagnosis.</div>
+
+<div class="note">
+For trained users. EFW is an estimate and should be interpreted with clinical
+assessment and an appropriate gestational-age standard. This tool supports
+triage and does not provide a definitive diagnosis.
+<br><br>
+Standard: INTERGROWTH-21st 2020 Hadlock 3-parameter EFW standard.
+Applicable GA: 22+0 to 40+0 weeks.
 </div>
+</div>
+
 <script>
 function v(id){return parseFloat(document.getElementById(id).value)}
-function err(t){document.getElementById("error").textContent=t||""}
-function calc(){
- err("");
- var ga=v("ga"),hc=v("hc")/10,ac=v("ac")/10,fl=v("fl")/10;
- if(!isFinite(ga)||ga<22||ga>40){err("Please enter gestational age from 22 to 40 weeks.");return}
- if(!isFinite(hc)||!isFinite(ac)||!isFinite(fl)||hc<=0||ac<=0||fl<=0){err("Please enter HC, AC and FL.");return}
- var log10=1.326-0.00326*ac*fl+0.0107*hc+0.0438*ac+0.158*fl;
- var efw=Math.pow(10,log10);
- document.getElementById("efw").textContent=Math.round(efw)+" g";
- document.getElementById("pct").textContent="—";
- document.getElementById("assessment").textContent="EFW calculated — percentile reference chart required.";
+function msg(t){document.getElementById("error").textContent=t||""}
+
+function percentileFromEFW(ga, efw){
+  /* INTERGROWTH-21st 2017 LMS equations for EFW, using exact gestational age in weeks.
+     The 2020 Hadlock standard uses the same published EFW centile LMS framework. */
+  var L = -4.257629 - 2162.234*Math.pow(ga,-2) + 0.0002301829*Math.pow(ga,3);
+  var M = 4.956737 + 0.0005019687*Math.pow(ga,3)
+          - 0.0001227065*Math.pow(ga,3)*Math.log(ga);
+  var S = Math.pow(10,-4) * (-6.997171 + 0.057559*Math.pow(ga,3)
+          - 0.01493946*Math.pow(ga,3)*Math.log(ga));
+  var Y = Math.log(efw);
+  var Z = (Math.pow(Y/M,L)-1)/(S*L);
+  var cdf = 0.5*(1+erf(Z/Math.sqrt(2)));
+  return {p:Math.max(0,Math.min(100,cdf*100)), z:Z};
 }
-function clearAll(){["ga","hc","ac","fl"].forEach(function(x){document.getElementById(x).value=""});document.getElementById("efw").textContent="— g";document.getElementById("pct").textContent="—";document.getElementById("assessment").textContent="—";err("")}
-document.getElementById("calc").onclick=calc;document.getElementById("clear").onclick=clearAll;
-if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){})}
+
+/* Abramowitz-Stegun approximation of erf; no external library required. */
+function erf(x){
+  var sign=x<0?-1:1; x=Math.abs(x);
+  var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  var t=1/(1+p*x);
+  var y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+
+function calc(){
+  msg("");
+  var ga=v("ga"), hc=v("hc")/10, ac=v("ac")/10, fl=v("fl")/10;
+
+  if(!isFinite(ga)||ga<22||ga>40){
+    msg("Please enter gestational age from 22 to 40 weeks."); return;
+  }
+  if(!isFinite(hc)||!isFinite(ac)||!isFinite(fl)||hc<=0||ac<=0||fl<=0){
+    msg("Please enter HC, AC and FL."); return;
+  }
+
+  /* Hadlock 3-parameter formula: HC + AC + FL; measurements in cm; EFW in g. */
+  var log10EFW = 1.326 + 0.0107*hc + 0.0438*ac + 0.158*fl - 0.00326*ac*fl;
+  var efw = Math.pow(10,log10EFW);
+
+  var r=percentileFromEFW(ga,efw);
+  var p=r.p;
+
+  document.getElementById("efw").textContent=Math.round(efw)+" g";
+  document.getElementById("pct").textContent=p.toFixed(1)+"th centile";
+
+  var a=document.getElementById("assessment");
+  if(p<3){
+    a.textContent="Possible marked small fetal size — further assessment / referral.";
+    a.className="warn";
+  }else if(p<10){
+    a.textContent="Below expected range — further assessment recommended.";
+    a.className="warn";
+  }else if(p<=90){
+    a.textContent="Within expected range.";
+    a.className="ok";
+  }else if(p<=97){
+    a.textContent="Above expected range — further assessment recommended.";
+    a.className="warn";
+  }else{
+    a.textContent="Possible marked large fetal size — further assessment / referral.";
+    a.className="warn";
+  }
+}
+
+function clearAll(){
+  ["ga","hc","ac","fl"].forEach(function(x){document.getElementById(x).value=""});
+  document.getElementById("efw").textContent="— g";
+  document.getElementById("pct").textContent="—";
+  document.getElementById("assessment").textContent="—";
+  document.getElementById("assessment").className="";
+  msg("");
+}
+
+document.getElementById("calc").onclick=calc;
+document.getElementById("clear").onclick=clearAll;
+document.getElementById("calc").ontouchend=function(e){e.preventDefault();calc()};
+document.getElementById("clear").ontouchend=function(e){e.preventDefault();clearAll()};
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
 </script>
-</body></html>
+</body>
+</html>
