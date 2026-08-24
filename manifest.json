@@ -6,5 +6,5 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
-  "description": "Offline fetal weight calculator with INTERGROWTH-21st 10th and 90th centile cutoffs"
+  "description": "Offline EFW calculator using Hadlock 3-parameter formula and INTERGROWTH-21st LMS centiles"
 }

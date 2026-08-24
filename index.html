@@ -14,114 +14,135 @@ input{width:100%;box-sizing:border-box;font-size:20px;padding:12px;margin-top:5p
 button{width:100%;font-size:20px;font-weight:bold;padding:14px;margin-top:18px;border:0;border-radius:8px}
 .result{margin-top:20px;padding:16px;border-radius:10px;background:#eee}
 .efw{font-size:32px;font-weight:bold;text-align:center;margin:8px 0}
-.line{font-size:18px;margin:9px 0} .small{font-size:14px;color:#555;line-height:1.45}
-.ok{font-weight:bold} .warn{font-weight:bold;color:#9b0000}
-.box{padding:10px;border-radius:8px;background:#fff;margin-top:10px}
-.error{font-size:15px;margin-top:10px;color:#b00020}
+.line{font-size:18px;margin:10px 0}.small{font-size:13px;line-height:1.5;color:#555}
+.cutoff{background:#fff;border-radius:8px;padding:10px;margin-top:10px}
+.ok{font-weight:bold}.warn{font-weight:bold;color:#a00000}.error{color:#b00020;margin-top:10px}
 </style>
 </head>
 <body>
 <div class="card">
 <h1>Fetal Weight Calculator</h1>
-<div><b>INTERGROWTH-21st 2020</b> — Hadlock 3-parameter EFW</div>
-<div class="small">Enter HC, AC and FL in <b>mm</b>. GA: 22+0 to 40+0 weeks.</div>
+<div><b>INTERGROWTH-21st 2020 EFW standard</b></div>
+<div class="small">Hadlock 3-parameter formula: HC + AC + FL. Enter measurements in mm.</div>
 
-<label for="ga">Gestational age (weeks)</label>
+<label>Gestational age (weeks)</label>
 <input id="ga" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 30">
 
-<label for="hc">HC (mm)</label>
+<label>HC (mm)</label>
 <input id="hc" type="number" step="0.1" inputmode="decimal">
-<label for="ac">AC (mm)</label>
+<label>AC (mm)</label>
 <input id="ac" type="number" step="0.1" inputmode="decimal">
-<label for="fl">FL (mm)</label>
+<label>FL (mm)</label>
 <input id="fl" type="number" step="0.1" inputmode="decimal">
 
 <button id="calc" type="button">CALCULATE</button>
 <button id="clear" type="button">CLEAR</button>
 
 <div class="result">
-  <div class="efw" id="efw">— g</div>
-  <div class="line">Estimated Fetal Weight</div>
-
-  <div class="box">
-    <div class="line"><b>10th centile cutoff:</b> <span id="p10">—</span> g</div>
-    <div class="line"><b>90th centile cutoff:</b> <span id="p90">—</span> g</div>
-  </div>
-
-  <div class="line"><b>Approximate centile:</b> <span id="pct">—</span></div>
-  <div class="line" id="assessment">—</div>
-  <div class="small" id="interpretation"></div>
-  <div class="error" id="error"></div>
+<div class="small">Estimated Fetal Weight</div>
+<div class="efw" id="efw">— g</div>
+<div class="line"><b>INTERGROWTH-21st centile:</b> <span id="pct">—</span></div>
+<div class="cutoff">
+<div class="line"><b>10th centile cutoff:</b> <span id="p10">—</span> g</div>
+<div class="line"><b>50th centile:</b> <span id="p50">—</span> g</div>
+<div class="line"><b>90th centile cutoff:</b> <span id="p90">—</span> g</div>
+</div>
+<div class="line" id="assessment">—</div>
+<div class="small" id="interpretation"></div>
+<div class="error" id="error"></div>
 </div>
 
-<div class="note small">
-<b>Important:</b> The primary triage classification is based on the published
-INTERGROWTH-21st 2020 10th and 90th centile EFW cutoffs for gestational age.
-The displayed centile is an approximate interpolation between published
-3rd, 10th, 50th, 90th and 97th centiles. For trained users only. This tool
-supports triage and is not intended for definitive diagnosis.
+<div class="small" style="margin-top:18px">
+Centile calculation uses the published INTERGROWTH-21st LMS equations for EFW
+(λ, μ, σ) and the Hadlock 3-parameter EFW formula recommended by INTERGROWTH-21st
+for the 2020 update. GA 22+0 to 40+0 weeks.
+<br><br>
+This is a support/triage calculator for trained users. It is not a definitive
+diagnostic tool and should not replace clinical assessment or referral criteria.
 </div>
 </div>
 
 <script>
 (function(){
 "use strict";
-var TABLE={"22":[463,481,525,578,607],"23":[516,538,592,658,694],"24":[575,602,668,751,796],"25":[642,675,756,857,913],"26":[716,757,856,980,1048],"27":[800,848,969,1119,1202],"28":[892,951,1097,1277,1376],"29":[994,1064,1239,1453,1570],"30":[1105,1189,1396,1648,1784],"31":[1226,1325,1568,1861,2017],"32":[1356,1472,1755,2090,2267],"33":[1495,1630,1954,2332,2529],"34":[1641,1796,2162,2582,2798],"35":[1794,1969,2378,2836,3069],"36":[1951,2146,2594,3086,3331],"37":[2109,2323,2806,3324,3578],"38":[2266,2496,3006,3540,3798],"39":[2416,2658,3186,3726,3982],"40":[2554,2805,3338,3871,4121]};
-var PTS=[3,10,50,90,97];
 
 function v(id){return parseFloat(document.getElementById(id).value);}
-function txt(id,t){document.getElementById(id).textContent=t;}
-function err(t){txt("error",t||"");}
+function t(id,s){document.getElementById(id).textContent=s;}
+function msg(s){t("error",s||"");}
 
-function interp(a,b,f){return a+(b-a)*f;}
+function erf(x){
+  var sign=x<0?-1:1; x=Math.abs(x);
+  var a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  var q=1/(1+p*x);
+  return sign*(1-(((((a5*q+a4)*q)+a3)*q+a2)*q+a1)*q*Math.exp(-x*x));
+}
+function normalCDF(z){return 0.5*(1+erf(z/Math.sqrt(2)));}
 
-function cutoffs(ga){
-  var lo=Math.floor(ga), hi=Math.ceil(ga);
-  if(lo<22) lo=22;
-  if(hi>40) hi=40;
-  if(lo===hi) return TABLE[lo];
-  var f=ga-lo, A=TABLE[lo], B=TABLE[hi], out=[];
-  for(var i=0;i<5;i++) out.push(interp(A[i],B[i],f));
-  return out;
+function lms(ga){
+  var lambda=-4.257629-2162.234*Math.pow(ga,-2)+0.0002301829*Math.pow(ga,3);
+  var mu=4.956737+0.0005019687*Math.pow(ga,3)
+         -0.0001227065*Math.pow(ga,3)*Math.log(ga);
+  var sigma=1e-4*(-6.997171+0.057559*Math.pow(ga,3)
+         -0.01493946*Math.pow(ga,3)*Math.log(ga));
+  return {lambda:lambda,mu:mu,sigma:sigma};
 }
 
-function approxPercentile(efw,c){
-  if(efw<c[0]) return 3*(efw/c[0]); 
-  if(efw<c[1]) return 3+(10-3)*(efw-c[0])/(c[1]-c[0]);
-  if(efw<c[2]) return 10+(50-10)*(efw-c[1])/(c[2]-c[1]);
-  if(efw<c[3]) return 50+(90-50)*(efw-c[2])/(c[3]-c[2]);
-  if(efw<c[4]) return 90+(97-90)*(efw-c[3])/(c[4]-c[3]);
-  return Math.min(99.9,97+(efw-c[4])/(c[4]-c[3])*3);
+function zForEFW(efw,ga){
+  var q=lms(ga), Y=Math.log(efw);
+  if(Math.abs(q.lambda)<1e-12){
+    return Math.log(Y/q.mu)/q.sigma;
+  }
+  return (Math.pow(Y/q.mu,q.lambda)-1)/(q.sigma*q.lambda);
 }
 
-function calc(){
-  err("");
+function efwAtZ(z,ga){
+  var q=lms(ga);
+  if(Math.abs(q.lambda)<1e-12){
+    return Math.exp(q.mu*Math.exp(q.sigma*z));
+  }
+  return Math.exp(q.mu*Math.pow(1+q.sigma*q.lambda*z,1/q.lambda));
+}
+
+function calculate(){
+  msg("");
   var ga=v("ga"), hc=v("hc")/10, ac=v("ac")/10, fl=v("fl")/10;
-  if(!isFinite(ga)||ga<22||ga>40){err("Please enter gestational age from 22 to 40 weeks.");return;}
-  if(!isFinite(hc)||!isFinite(ac)||!isFinite(fl)||hc<=0||ac<=0||fl<=0){err("Please enter HC, AC and FL.");return;}
 
-  /* Hadlock 3-parameter equation; HC, AC, FL in cm; EFW in g. */
-  var log10EFW=1.326+0.0107*hc+0.0438*ac+0.158*fl-0.00326*ac*fl;
+  if(!isFinite(ga)||ga<22||ga>40){
+    msg("Please enter gestational age from 22 to 40 weeks."); return;
+  }
+  if(!isFinite(hc)||!isFinite(ac)||!isFinite(fl)||hc<=0||ac<=0||fl<=0){
+    msg("Please enter HC, AC and FL."); return;
+  }
+
+  /* Hadlock 1985 B3: log10(EFW g) with HC, AC, FL in cm. */
+  var log10EFW=1.326-0.00326*ac*fl+0.0107*hc+0.0438*ac+0.158*fl;
   var efw=Math.pow(10,log10EFW);
-  var c=cutoffs(ga), p=approxPercentile(efw,c);
 
-  txt("efw",Math.round(efw)+" g");
-  txt("p10",Math.round(c[1]));
-  txt("p90",Math.round(c[3]));
-  txt("pct",p.toFixed(1)+"th");
+  var z=zForEFW(efw,ga);
+  var p=normalCDF(z)*100;
+
+  var p10=efwAtZ(-1.2815515655446004,ga);
+  var p50=efwAtZ(0,ga);
+  var p90=efwAtZ(1.2815515655446004,ga);
+
+  t("efw",Math.round(efw)+" g");
+  t("pct",p.toFixed(1)+"th");
+  t("p10",Math.round(p10));
+  t("p50",Math.round(p50));
+  t("p90",Math.round(p90));
 
   var a=document.getElementById("assessment");
   var i=document.getElementById("interpretation");
   a.className="";
-  if(efw<c[1]){
+  if(p<10){
     a.textContent="⚠ Below the 10th centile";
     a.className="warn";
-    i.textContent="Possible small-for-gestational-age finding. Further clinical assessment / referral is recommended.";
-  } else if(efw>c[3]){
+    i.textContent="EFW is below the INTERGROWTH-21st 10th centile. This is a screening/triage finding, not a diagnosis of FGR.";
+  }else if(p>90){
     a.textContent="⚠ Above the 90th centile";
     a.className="warn";
-    i.textContent="Possible large-for-gestational-age finding. Further clinical assessment is recommended.";
-  } else {
+    i.textContent="EFW is above the INTERGROWTH-21st 90th centile. Consider clinical assessment and local referral criteria.";
+  }else{
     a.textContent="✓ Within the 10th–90th centile range";
     a.className="ok";
     i.textContent="EFW is within the expected range by this standard.";
@@ -130,17 +151,29 @@ function calc(){
 
 function clearAll(){
  ["ga","hc","ac","fl"].forEach(function(id){document.getElementById(id).value="";});
- ["efw","p10","p90","pct","assessment","interpretation"].forEach(function(id){txt(id,"—");});
- err("");
+ ["efw","pct","p10","p50","p90","assessment","interpretation"].forEach(function(id){t(id,"—");});
+ document.getElementById("assessment").className="";
+ msg("");
 }
 
-document.getElementById("calc").onclick=calc;
-document.getElementById("clear").onclick=clearAll;
-document.getElementById("calc").ontouchend=function(e){e.preventDefault();calc();};
-document.getElementById("clear").ontouchend=function(e){e.preventDefault();clearAll();};
+document.getElementById("calc").addEventListener("click", function(e){
+  e.preventDefault();
+  calculate();
+}, false);
+document.getElementById("clear").addEventListener("click", function(e){
+  e.preventDefault();
+  clearAll();
+}, false);
+
+/* Keep calculation results visible while editing fields; no calculation is triggered by input/focus. */
+["ga","hc","ac","fl"].forEach(function(id){
+  document.getElementById(id).addEventListener("input", function(){ msg(""); }, false);
+});
 
 if("serviceWorker" in navigator){
- window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
+ window.addEventListener("load",function(){
+   navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(function(){});
+ });
 }
 })();
 </script>
