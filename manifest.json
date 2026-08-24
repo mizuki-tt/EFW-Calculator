@@ -2,8 +2,9 @@
   "name": "EFW Calculator – INTERGROWTH-21st",
   "short_name": "EFW Calculator",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
-  "description": "Offline fetal weight calculator using Hadlock 3-parameter EFW and INTERGROWTH-21st centiles"
+  "description": "Offline fetal weight calculator"
 }
